@@ -10,12 +10,14 @@ public class PlayerSpawner : NetworkBehaviour
 
     private List<Transform> spawnPoints = new List<Transform>();
 
+    //Awake method
     private void Awake()
     {
         Instance = this;
         SetSpawnPoints();
     }
 
+    //Gets random respawn point after player is killed
     public Transform GetRandomRespawnPoint()
     {
         if (respawnPoints.Count == 0)
@@ -26,6 +28,7 @@ public class PlayerSpawner : NetworkBehaviour
         return respawnPoints[Random.Range(0, respawnPoints.Count)];
     }
 
+    //Gets random spawn point when player joins the game
     public Transform GetRandomSpawnPoint()
     {
         if(spawnPoints.Count == 0)
@@ -33,11 +36,14 @@ public class PlayerSpawner : NetworkBehaviour
             return transform;
         }
         Transform spawnPoint = spawnPoints[Random.Range(0,spawnPoints.Count)];
+
+        //Removes a spawn point once used so no two player spawns on same spawn point
         spawnPoints.Remove(spawnPoint);
         return spawnPoint;
     }
 
-    void SetSpawnPoints()
+    //Makes a copy of respawn Point into spawn point
+    private void SetSpawnPoints()
     {
         foreach (Transform t in respawnPoints)
         {

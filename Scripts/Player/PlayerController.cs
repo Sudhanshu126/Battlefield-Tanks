@@ -1,4 +1,3 @@
-using System;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -319,7 +318,6 @@ public class PlayerController : NetworkBehaviour, IDamagable
         ModifyHealth(-damageValue);
     }
 
-
     //Modify changes to the health
     private void ModifyHealth(int value)
     {
@@ -332,46 +330,13 @@ public class PlayerController : NetworkBehaviour, IDamagable
         }
     }
 
+    //triggers when player loses a life
     public void LoseLife()
     {
         if(!IsOwner) { return; }
 
         MainGameUIController.LocalInstance.HandleLifeLost(currentLives.Value - 1, RespawnTime, NetworkManager.Singleton.LocalClientId);
         HandlePlayerLifeLostServerRpc(NetworkManager.Singleton.LocalClientId);
-    }
-
-    [ServerRpc]
-    private void HandlePlayerLifeLostServerRpc(ulong playerId)
-    {
-        GameObject playerObject =  NetworkManager.Singleton.ConnectedClients[playerId].PlayerObject.gameObject;
-        PlayerController player = playerObject.GetComponent<PlayerController>();
-
-        player.currentLives.Value--;
-        player.gameObject.SetActive(false);
-        if (player?.currentLives.Value <= 0)
-        {
-            Destroy(playerObject);
-            return;
-        }
-    }
-
-    [ServerRpc]
-    public void RespawnPlayerServerRpc(ulong playerId)
-    {
-        GameObject playerObject = NetworkManager.Singleton.ConnectedClients[playerId].PlayerObject.gameObject;
-        PlayerController player = playerObject.GetComponent<PlayerController>();
-
-        Transform respawnPoint = PlayerSpawner.Instance.GetRandomRespawnPoint();
-        player.transform.position = respawnPoint.position;
-        player.trackTransform.rotation = respawnPoint.rotation;
-
-        player.gameObject.SetActive(true);
-    }
-
-    public void RespawnPlayer(Transform respawnPoint)
-    {
-        transform.position = respawnPoint.position;
-        trackTransform.rotation = respawnPoint.rotation;
     }
 
     /* ---------- Remote Procedure Calls (RPCs) ---------- */
@@ -416,5 +381,35 @@ public class PlayerController : NetworkBehaviour, IDamagable
         if(IsOwner) { return; }
 
         SpawnDummyProjectile();
+    }
+
+    //Handles player when loses a life
+    [ServerRpc]
+    private void HandlePlayerLifeLostServerRpc(ulong playerId)
+    {
+        GameObject playerObject = NetworkManager.Singleton.ConnectedClients[playerId].PlayerObject.gameObject;
+        PlayerController player = playerObject.GetComponent<PlayerController>();
+
+        player.currentLives.Value--;
+        player.gameObject.SetActive(false);
+        if (player?.currentLives.Value <= 0)
+        {
+            Destroy(playerObject);
+            return;
+        }
+    }
+
+    //Respawns player when its respawn countdown ends
+    [ServerRpc]
+    public void RespawnPlayerServerRpc(ulong playerId)
+    {
+        GameObject playerObject = NetworkManager.Singleton.ConnectedClients[playerId].PlayerObject.gameObject;
+        PlayerController player = playerObject.GetComponent<PlayerController>();
+
+        Transform respawnPoint = PlayerSpawner.Instance.GetRandomRespawnPoint();
+        player.transform.position = respawnPoint.position;
+        player.trackTransform.rotation = respawnPoint.rotation;
+
+        player.gameObject.SetActive(true);
     }
 }
