@@ -9,13 +9,15 @@ using Unity.Services.Relay;
 using Unity.Services.Relay.Models;
 using Unity.Services.Lobbies.Models;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using System.Collections;
+using System.Text;
+using Unity.Services.Authentication;
 
-public class HostGameManager
+public class HostGameManager : IDisposable
 {
-    private const int maxConnections = 10;
+    public NetworkServer NetworkServer { get; private set; }
 
+    private const int maxConnections = 10;
     private Allocation allocation;
     private string joinCode, lobbyId;
     private float lobbyHeartBeat = 15f;
@@ -61,7 +63,7 @@ public class HostGameManager
                 }
             };
 
-            Lobby lobby = await Lobbies.Instance.CreateLobbyAsync("My Lobby", maxConnections, lobbyOptions);
+            Lobby lobby = await Lobbies.Instance.CreateLobbyAsync($"{LocalDataHandler.Instance.PlayerData.nickName}'s lobby", maxConnections, lobbyOptions);
 
             lobbyId = lobby.Id;
 
@@ -73,8 +75,30 @@ public class HostGameManager
             return;
         }
 
+        NetworkServer = new NetworkServer(NetworkManager.Singleton);
+        SharedUserData userData = new SharedUserData
+        {
+            nickName = LocalDataHandler.Instance.PlayerData.nickName,
+            authenticationId = AuthenticationService.Instance.PlayerId
+        };
+        string payload = JsonUtility.ToJson(userData);
+        byte[] payloadBytes = Encoding.UTF8.GetBytes(payload);
+        NetworkManager.Singleton.NetworkConfig.ConnectionData = payloadBytes;
+
+        /* Disabled for debug   ========
         NetworkManager.Singleton.StartHost();
         NetworkManager.Singleton.SceneManager.LoadScene(SceneCode.MainGame.ToString(), LoadSceneMode.Single);
+        Debug.Log("HOST STARTED");
+        */
+
+        //DEBUG
+        MainMenuUIController.Instance.GetSceneLoader().onSceneLoaded += OnSceneLoaded;
+        MainMenuUIController.Instance.GetSceneLoader().LoadScene(SceneCode.MainGame);
+    }
+
+    private void OnSceneLoaded()
+    {
+        NetworkManager.Singleton.StartHost();
     }
 
     private IEnumerator HeartBeatLobby(float waitForTimeSeconds)
@@ -85,5 +109,28 @@ public class HostGameManager
             Lobbies.Instance.SendHeartbeatPingAsync(lobbyId);
             yield return lobbyHeartRate;
         }
+    }
+
+    public async void Dispose()
+    {
+        HostSingleton.Instance.StopCoroutine(nameof(HeartBeatLobby));
+        MainMenuUIController.Instance.GetSceneLoader().onSceneLoaded -= OnSceneLoaded;
+
+        if (!string.IsNullOrEmpty(lobbyId))
+        {
+            try
+            {
+                await Lobbies.Instance.DeleteLobbyAsync(lobbyId);
+            }
+            catch(LobbyServiceException ex)
+            {
+                Debug.LogError(ex.Message);
+                return;
+            }
+
+            lobbyId = string.Empty;
+        }
+
+        NetworkServer?.Dispose();
     }
 }

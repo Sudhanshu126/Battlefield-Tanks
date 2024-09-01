@@ -3,20 +3,27 @@ using UnityEngine;
 
 public class MainMenuUIController : MonoBehaviour
 {
-    [SerializeField] private GameObject mainMenu, playMenu;
+    public static MainMenuUIController Instance {  get; private set; }
+
+    [SerializeField] private GameObject mainMenu, playMenu, loadingScreen;
     [SerializeField] private TMP_InputField joinCodeInput, nicknameInput;
     [SerializeField] private TMP_Text nicknameText, nicknameWarningText;
+    [SerializeField] private SceneLoader sceneLoader;
 
     private PlayerData playerData;
 
     private const string defaultPlayerName = "Player";
+
+    private void Awake()
+    {
+        Instance = this;
+    }
 
     private void Start()
     {
         DisableAllMenu();
         mainMenu.SetActive(true);
 
-        LocalDataHandler.Instance.LoadData();
         playerData = LocalDataHandler.Instance.PlayerData;
         ConfigureLocalPlayerData();
     }
@@ -40,6 +47,7 @@ public class MainMenuUIController : MonoBehaviour
 
     public async void StartHostAsync()
     {
+        ShowLoadingScreen();
         await HostSingleton.Instance.GameManager.StartHostAsync();
     }
 
@@ -48,9 +56,12 @@ public class MainMenuUIController : MonoBehaviour
         string joinCode = joinCodeInput.text;
         if(!string.IsNullOrEmpty(joinCode))
         {
+            ShowLoadingScreen();
             await ClientSingleton.Instance.GameManager.StartClientAsync(joinCode);
         }
     }
+
+    public void ShowLoadingScreen() => loadingScreen.SetActive(true);
 
     public void ChangeNickname()
     {
@@ -94,5 +105,10 @@ public class MainMenuUIController : MonoBehaviour
             nicknameText.text = playerData.nickName;
             nicknameInput.text = playerData.nickName;
         }
+    }
+
+    public SceneLoader GetSceneLoader()
+    {
+        return sceneLoader;
     }
 }

@@ -1,12 +1,10 @@
 using TMPro;
 using Unity.Services.Lobbies.Models;
 using UnityEngine;
-using UnityEngine.UI;
 
 public class PublicLobbyTemplate : MonoBehaviour
 {
     [SerializeField] private TMP_Text lobbyNameText, playersCountText;
-    [SerializeField] private Button joinButton;
 
     private Lobby assignedLobby;
 
@@ -21,6 +19,7 @@ public class PublicLobbyTemplate : MonoBehaviour
 
     public void JoinThisLobby()
     {
+        MainMenuUIController.Instance.ShowLoadingScreen();
         PublicLobbiesHandler.Instance.JoinLobbyAsync(assignedLobby);
     }
 }

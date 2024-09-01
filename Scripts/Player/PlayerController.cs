@@ -5,15 +5,13 @@ using UnityEngine;
 public class PlayerController : NetworkBehaviour, IDamagable
 {
     //Public static members
-    public static PlayerController localInstance { get; private set; }
-
-    //Public variables
-    public event Action<PlayerController> onDie;
+    public static PlayerController LocalInstance { get; private set; }
 
     //Network variables
     [Header("Network Variables")]
     public NetworkVariable<int> currentHealth = new NetworkVariable<int>();
     public NetworkVariable<int> coinsCollected = new NetworkVariable<int>();
+    public NetworkVariable<int> currentLives = new NetworkVariable<int>();
 
     //Private visible variables
     [Header("References")]
@@ -33,9 +31,13 @@ public class PlayerController : NetworkBehaviour, IDamagable
 
     //Private properties
     [field: SerializeField] public int MaxHealth { get; private set; }
+    [field: SerializeField] public int MaxLives {  get; private set; }
+    [field: SerializeField] public int RespawnTime {  get; private set; }
 
     //Private hidden variables
-    private InputReader inputReader;
+    /* debug ======== 
+    //private InputReader inputReader;*/
+    public InputReader inputReader;
     private bool isTurning, isFireRateReset, isDead, isFiring;
     private float lastFireTimer, lastMuzzleFlashTimer, lastAmmoReloadTimer;
     private int currentAmmoCount;
@@ -48,18 +50,15 @@ public class PlayerController : NetworkBehaviour, IDamagable
         if(IsServer)
         {
             currentHealth.Value = MaxHealth;
+            currentLives.Value = MaxLives;
         }
 
         if (IsOwner)
         {
             inputReader = InputReader.Instance;
-            localInstance = this;
-            isFireRateReset = true;
-            currentAmmoCount = maxAmmoCount;
+            LocalInstance = this;
 
-            lastFireTimer = 1/fireRate;
-            lastMuzzleFlashTimer = muzzleFlashDuration;
-            lastAmmoReloadTimer = singleAmmoReloadTime;
+            ResetTimers();
 
             inputReader.PrimaryFirePerformedEvent += PrimaryFire;
             currentHealth.OnValueChanged += OnCurrentHealthChanged;
@@ -76,6 +75,21 @@ public class PlayerController : NetworkBehaviour, IDamagable
         }
     }
 
+    private void OnEnable()
+    {
+        ResetTimers();
+    }
+
+    private void ResetTimers()
+    {
+        isFireRateReset = true;
+        currentAmmoCount = maxAmmoCount;
+
+        lastFireTimer = 1 / fireRate;
+        lastMuzzleFlashTimer = muzzleFlashDuration;
+        lastAmmoReloadTimer = singleAmmoReloadTime;
+    }
+
     //Called once per frame
     private void Update()
     {
@@ -85,7 +99,6 @@ public class PlayerController : NetworkBehaviour, IDamagable
         isFiring = inputReader.isPrimaryFiring;
         if (isFiring)
         {
-            isFiring = true;
             PrimaryFire();
         }
 
@@ -115,6 +128,14 @@ public class PlayerController : NetworkBehaviour, IDamagable
                 ReloadOneAmmo();
             }
         }
+
+        //======= DEBUG ======
+#if UNITY_EDITOR
+        if (Input.GetKeyDown(KeyCode.X))
+        {
+            LoseLife();
+        }
+#endif
     }
 
     //Called on regular intervals
@@ -298,12 +319,6 @@ public class PlayerController : NetworkBehaviour, IDamagable
         ModifyHealth(-damageValue);
     }
 
-    //Kill player
-    public void KillDamagable()
-    {
-        isDead = true;
-        onDie?.Invoke(this);
-    }
 
     //Modify changes to the health
     private void ModifyHealth(int value)
@@ -311,10 +326,52 @@ public class PlayerController : NetworkBehaviour, IDamagable
         int newHealth = currentHealth.Value + value;
         currentHealth.Value = Mathf.Clamp(newHealth, 0, MaxHealth);
 
-        if (currentHealth.Value == 0)
+        if (currentHealth.Value <= 0 && currentLives.Value > 0)
         {
-            KillDamagable();
+            LoseLife();
         }
+    }
+
+    public void LoseLife()
+    {
+        if(!IsOwner) { return; }
+
+        MainGameUIController.LocalInstance.HandleLifeLost(currentLives.Value - 1, RespawnTime, NetworkManager.Singleton.LocalClientId);
+        HandlePlayerLifeLostServerRpc(NetworkManager.Singleton.LocalClientId);
+    }
+
+    [ServerRpc]
+    private void HandlePlayerLifeLostServerRpc(ulong playerId)
+    {
+        GameObject playerObject =  NetworkManager.Singleton.ConnectedClients[playerId].PlayerObject.gameObject;
+        PlayerController player = playerObject.GetComponent<PlayerController>();
+
+        player.currentLives.Value--;
+        player.gameObject.SetActive(false);
+        if (player?.currentLives.Value <= 0)
+        {
+            Destroy(playerObject);
+            return;
+        }
+    }
+
+    [ServerRpc]
+    public void RespawnPlayerServerRpc(ulong playerId)
+    {
+        GameObject playerObject = NetworkManager.Singleton.ConnectedClients[playerId].PlayerObject.gameObject;
+        PlayerController player = playerObject.GetComponent<PlayerController>();
+
+        Transform respawnPoint = PlayerSpawner.Instance.GetRandomRespawnPoint();
+        player.transform.position = respawnPoint.position;
+        player.trackTransform.rotation = respawnPoint.rotation;
+
+        player.gameObject.SetActive(true);
+    }
+
+    public void RespawnPlayer(Transform respawnPoint)
+    {
+        transform.position = respawnPoint.position;
+        trackTransform.rotation = respawnPoint.rotation;
     }
 
     /* ---------- Remote Procedure Calls (RPCs) ---------- */

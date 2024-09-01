@@ -1,4 +1,5 @@
 using System.Threading.Tasks;
+using Unity.VisualScripting;
 using UnityEngine;
 
 public class ClientSingleton : MonoBehaviour
@@ -18,6 +19,11 @@ public class ClientSingleton : MonoBehaviour
     private void Start()
     {
         DontDestroyOnLoad(gameObject);
+    }
+
+    private void OnDestroy()
+    {
+        GameManager?.Dispose();
     }
 
     public async Task<bool> CreateClient()

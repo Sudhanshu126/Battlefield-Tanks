@@ -12,11 +12,13 @@ public class LocalDataHandler : MonoBehaviour
     private void Awake()
     {
         Instance = this;
+        PlayerData = new PlayerData();
+        LoadData();
     }
 
     private void Start()
     {
-        PlayerData = new PlayerData();
+        DontDestroyOnLoad(gameObject);
     }
 
     public void LoadData()
